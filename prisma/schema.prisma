@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  VIEWER
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+  UNKNOWN
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  VERIFIED
+  DISPUTED
+}
+
+enum TransactionDirection {
+  INCOMING
+  OUTGOING
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String?
+  passwordHash String
+  role         Role       @default(STAFF)
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  accounts     Account[]
+  sessions     Session[]
+  auditLogs    AuditLog[] @relation("ActorLogs")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Transaction {
+  id                 String               @id @default(cuid())
+  externalId         String               @unique
+  amount             Decimal
+  currency           String               @default("GHS")
+  status             TransactionStatus    @default(PENDING)
+  direction          TransactionDirection @default(INCOMING)
+  payerMsisdn        String?
+  payerName          String?
+  payeeMsisdn        String?
+  payeeName          String?
+  merchantId         String?
+  momoTimestamp      DateTime?
+  receivedAt         DateTime             @default(now())
+  rawPayload         String?
+  internalNote       String?
+  orderReference     String?
+  verificationStatus VerificationStatus   @default(UNVERIFIED)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@index([receivedAt])
+  @@index([status])
+  @@index([direction])
+  @@index([payerMsisdn])
+  @@index([payeeMsisdn])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation("ActorLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  resource  String?
+  metadata  String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
+  @@index([action])
+}
